@@ -392,8 +392,9 @@ async function actualizarDatos(){
   });
 }
   
-    document.addEventListener("DOMContentLoaded", function() {
-    // Tu código aquí
+  window.actualizarDatos = actualizarDatos;
+
+  document.addEventListener("DOMContentLoaded", function() {
     actualizarDatos();
   });
  
