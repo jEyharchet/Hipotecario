@@ -260,7 +260,68 @@
 
 <script src="datos.js"></script>
 <script>
-function actualizarDatos(){
+const SHEETS_CONFIG = {
+  spreadsheetId: "1P_QACkgSfQKG39ytEIhnkQnflg55B9fgl17yB2-6w4I",
+  cuotasEmitidasSheet: "cuotasEmitidas",
+  cuotasFuturasSheet: "cuotasFuturas"
+};
+
+function buildSheetUrl(spreadsheetId, sheetName) {
+  const encodedSheet = encodeURIComponent(sheetName);
+  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodedSheet}`;
+}
+
+async function fetchSheetRows(spreadsheetId, sheetName) {
+  const url = buildSheetUrl(spreadsheetId, sheetName);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`No se pudo leer la hoja ${sheetName}`);
+  }
+  const text = await response.text();
+  const jsonStart = text.indexOf("{");
+  const jsonEnd = text.lastIndexOf("}");
+  const json = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+  const headers = json.table.cols.map(col => col.label);
+  return json.table.rows.map(row => {
+    const rowData = {};
+    row.c.forEach((cell, index) => {
+      const header = headers[index];
+      rowData[header] = cell?.f ?? cell?.v ?? "";
+    });
+    return rowData;
+  });
+}
+
+function normalizarCuota(row) {
+  return {
+    nro: row.nro ?? row.Nro ?? row["N°"] ?? "",
+    vencimiento: row.vencimiento ?? row.Vencimiento ?? "",
+    valorUva: row.valorUva ?? row["valor uva"] ?? row["Valor UVA"] ?? "",
+    capitalUva: row.capitalUva ?? row["capital uva"] ?? row["Capital UVA"] ?? "",
+    capitalPesos: row.capitalPesos ?? row["capital $"] ?? row["Capital $"] ?? "",
+    intereses: row.intereses ?? row.Intereses ?? "",
+    total: row.total ?? row.Total ?? ""
+  };
+}
+
+async function cargarCuotasDesdeSheets() {
+  const { spreadsheetId, cuotasEmitidasSheet, cuotasFuturasSheet } = SHEETS_CONFIG;
+  if (!spreadsheetId || spreadsheetId === "REEMPLAZAR_CON_ID") {
+    throw new Error("Falta configurar el ID de Google Sheets");
+  }
+
+  const [emitidasRaw, futurasRaw] = await Promise.all([
+    fetchSheetRows(spreadsheetId, cuotasEmitidasSheet),
+    fetchSheetRows(spreadsheetId, cuotasFuturasSheet)
+  ]);
+
+  return {
+    cuotasEmitidas: emitidasRaw.map(normalizarCuota),
+    cuotasFuturas: futurasRaw.map(normalizarCuota)
+  };
+}
+
+async function actualizarDatos(){
   if(typeof datos==='undefined'){alert("No se encontró el archivo datos.js");return;}
   tit1.textContent=datos.titular1;
   dni1.textContent=datos.dni1;
@@ -292,8 +353,18 @@ function actualizarDatos(){
   compad.textContent=datos.cuota.adic;
   comptot.textContent=datos.cuota.total;
 
+  let cuotasEmitidas = datos.cuotasEmitidas;
+  let cuotasFuturas = datos.cuotasFuturas;
+  try {
+    const cuotas = await cargarCuotasDesdeSheets();
+    cuotasEmitidas = cuotas.cuotasEmitidas;
+    cuotasFuturas = cuotas.cuotasFuturas;
+  } catch (error) {
+    console.warn("No se pudieron cargar las cuotas desde Sheets. Se usará datos.js.", error);
+  }
+
   tablaCuotas.innerHTML='';
-  datos.cuotasEmitidas.forEach(c=>{
+  cuotasEmitidas.forEach(c=>{
     tablaCuotas.innerHTML+=`
       <tr>
         <td style="padding:6px;border:1px solid var(--border)">${c.nro}</td>
@@ -307,7 +378,7 @@ function actualizarDatos(){
   });
   
   tablaCuotasFuturas.innerHTML='';
-  datos.cuotasFuturas.forEach(c=>{
+  cuotasFuturas.forEach(c=>{
     tablaCuotasFuturas.innerHTML+=`
       <tr>
         <td style="padding:6px;border:1px solid var(--border)">${c.nro}</td>
@@ -321,8 +392,9 @@ function actualizarDatos(){
   });
 }
   
-    document.addEventListener("DOMContentLoaded", function() {
-    // Tu código aquí
+  window.actualizarDatos = actualizarDatos;
+
+  document.addEventListener("DOMContentLoaded", function() {
     actualizarDatos();
   });
  

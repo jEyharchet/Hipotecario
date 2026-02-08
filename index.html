@@ -294,7 +294,7 @@ async function fetchSheetRows(spreadsheetId, sheetName) {
 
 function normalizarCuota(row) {
   return {
-    nro: row.nro ?? row.Nro ?? row.N° ?? row["N°"] ?? "",
+    nro: row.nro ?? row.Nro ?? row["N°"] ?? "",
     vencimiento: row.vencimiento ?? row.Vencimiento ?? "",
     valorUva: row.valorUva ?? row["valor uva"] ?? row["Valor UVA"] ?? "",
     capitalUva: row.capitalUva ?? row["capital uva"] ?? row["Capital UVA"] ?? "",
@@ -392,8 +392,9 @@ async function actualizarDatos(){
   });
 }
   
-    document.addEventListener("DOMContentLoaded", function() {
-    // Tu código aquí
+  window.actualizarDatos = actualizarDatos;
+
+  document.addEventListener("DOMContentLoaded", function() {
     actualizarDatos();
   });
  
