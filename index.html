@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Simulación - Liquidación de Cuota (editable)</title>
+<style>
+  :root{
+    --bna-blue:#0077b6;
+    --header-blue:#0b80b8;
+    --accent:#00a3d9;
+    --dark:#1f2d3a;
+    --muted:#6b7a86;
+    --bg:#f7f9fb;
+    --box-bg:#ffffff;
+    --border:#cfdbe6;
+    --shadow:0 1px 2px rgba(16,24,32,0.08);
+    --radius:6px;
+    --font-sans:"Helvetica Neue",Arial,Helvetica,sans-serif;
+  }
+
+  html,body{
+    height:100%;
+    margin:0;
+    font-family:var(--font-sans);
+    background:var(--bg);
+    color:var(--dark);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .container{
+    max-width:980px;
+    margin:28px auto;
+    padding:18px;
+  }
+
+  .card{
+    background:var(--box-bg);
+    border-radius:8px;
+    box-shadow:var(--shadow);
+    border:1px solid var(--border);
+    overflow:hidden;
+  }
+
+  .card-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:12px 18px;
+    background:linear-gradient(90deg,var(--header-blue),var(--accent));
+    color:white;
+  }
+  .brand-left{display:flex;gap:12px;align-items:center;}
+  .logo-small{width:180px;height:44px;display:flex;align-items:center;justify-content:center;}
+  .logo-small svg{width:170px;height:36px;}
+  .brand-right{text-align:right;min-width:220px;}
+  .brand-right .bank-title{font-weight:700;font-size:18px;}
+  .brand-right .bank-sub{font-size:12px;opacity:0.95;}
+
+  .card-body{padding:18px;}
+  .cols{display:grid;grid-template-columns:1fr 360px;gap:16px;}
+
+  .main-box{
+    background:linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,250,250,0.98));
+    border-radius:6px;
+    padding:14px;
+    border:1px solid var(--border);
+    margin-bottom:16px;
+  }
+
+  .info-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-bottom:10px;
+  }
+
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .label{font-size:12px;color:var(--muted);}
+  .value{
+    background:#f3f9ff;
+    border:1px solid #d6eefb;
+    padding:8px;
+    border-radius:4px;
+    font-weight:700;
+  }
+
+  .side-box{
+    background:#fff;
+    border-radius:6px;
+    border:1px solid var(--border);
+    padding:12px;
+    margin-bottom:12px;
+  }
+  .side-title{font-weight:700;font-size:13px;margin-bottom:8px;}
+  .side-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #e6eef5;}
+  .side-row:last-child{border-bottom:none;}
+
+  .summary-box{
+    margin-top:12px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    overflow:hidden;
+  }
+  .summary-row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;
+    border-bottom:1px solid var(--border);
+    gap:8px;
+  }
+  .summary-row.alt{background:#f6fbff;}
+  .summary-row .sr-left{font-weight:600;color:var(--muted);font-size:13px;}
+  .summary-row .sr-right{font-weight:700;font-size:14px;}
+  .notes{margin-top:12px;font-size:12px;color:var(--muted);background:#f7fbff;border:1px solid #e3f2fb;padding:10px;border-radius:6px;}
+
+  .editable{outline:2px dashed transparent;transition:outline-color .12s ease;}
+  .editable:focus{outline-color:#9ad8ff;}
+  button{
+    background:var(--bna-blue);
+    color:white;
+    border:none;
+    padding:10px 18px;
+    border-radius:6px;
+    cursor:pointer;
+    font-weight:600;
+    margin-bottom:12px;
+  }
+  button:hover{background:var(--header-blue);}
+  @media(max-width:880px){.cols{grid-template-columns:1fr;}.brand-right{text-align:left;}}
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="card" role="document" aria-label="Liquidación de cuota editable">
+      <div class="card-header">
+        <div class="brand-left">
+          <div class="logo-small">
+            <svg viewBox="0 0 320 60" xmlns="http://www.w3.org/2000/svg">
+              <rect width="320" height="60" rx="6" fill="#ffffff" />
+              <text x="20" y="36" fill="#0077b6" font-weight="700" font-size="20" font-family="Arial,Helvetica">+Hogares con BNA</text>
+            </svg>
+          </div>
+          <div style="font-size:13px;color:white">
+            <div style="font-weight:700">Liquidación de Cuota</div>
+            <div style="font-size:12px;opacity:0.95">Simulación</div>
+          </div>
+        </div>
+        <div class="brand-right">
+          <div class="bank-title">BNA</div>
+          <div class="bank-sub">Banco de la Nación Argentina</div>
+        </div>
+      </div>
+
+      <div class="card-body">
+        
+        <div class="cols">
+          <!-- LEFT -->
+          <div>
+            <!-- TITULARES -->
+            <div class="main-box" id="titulares">
+              <h4 style="margin:0 0 10px 0;">Titulares</h4>
+              <div class="info-grid">
+                <div class="field"><div class="label">Nombre y Apellido Titular 1</div><div class="value editable" id="tit1"></div></div>
+                <div class="field"><div class="label">DNI Titular 1</div><div class="value editable" id="dni1"></div></div>
+                <div class="field"><div class="label">Nombre y Apellido Titular 2</div><div class="value editable" id="tit2"></div></div>
+                <div class="field"><div class="label">DNI Titular 2</div><div class="value editable" id="dni2"></div></div>
+                <div class="field" style="grid-column:1/3;"><div class="label">Domicilio</div><div class="value editable" id="domicilio"></div></div>
+              </div>
+            </div>
+
+            <!-- CREDITO -->
+            <div class="main-box" id="credito">
+              <h4 style="margin:0 0 10px 0;">Crédito</h4>
+              <div class="info-grid">
+                <div class="field"><div class="label">Monto otorgado</div><div class="value editable" id="monto"></div></div>
+                <div class="field"><div class="label">Equivalente en UVAs</div><div class="value editable" id="uvas"></div></div>
+                <div class="field"><div class="label">Plazo</div><div class="value editable" id="plazo"></div></div>
+                <div class="field"><div class="label">Sistema</div><div class="value editable" id="sistema"></div></div>
+                <div class="field"><div class="label">Primera cuota</div><div class="value editable" id="primera"></div></div>
+                <div class="field"><div class="label">Última cuota</div><div class="value editable" id="ultima"></div></div>
+                <div class="field"><div class="label">TNA</div><div class="value editable" id="tna"></div></div>
+                <div class="field"><div class="label">Cuotas liquidadas</div><div class="value editable" id="cuotasliq"></div></div>
+                <div class="field"><div class="label">UVAs restantes</div><div class="value editable" id="uvasrest"></div></div>
+                <div class="field"><div class="label">UVAs liquidadas</div><div class="value editable" id="uvasliq"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT -->
+          
+          <div>
+            <button onclick="actualizarDatos()" style="width:100%">Actualizar datos</button>
+            <div class="side-box" id="cuotaactual">
+              <div class="side-title">Cuota Actual</div>
+              <div class="side-row"><div><small>N° de cuota</small></div><div class="editable" id="nrocuota"></div></div>
+              <div class="side-row"><div><small>Fecha de Vencimiento</small></div><div class="editable" id="cuotavto"></div></div>
+              <div class="side-row"><div><small>Valor UVA al vencimiento</small></div><div class="editable" id="uvavto"></div></div>
+              <div class="side-row"><div><small>Capital a amortizar (UVAs)</small></div><div class="editable" id="cuotauva"></div></div>
+              <div class="side-row"><div><small>Capital a amortizar (pesos)</small></div><div class="editable" id="cap"></div></div>
+              <div class="side-row"><div><small>Intereses</small></div><div class="editable" id="int"></div></div>
+              <div class="side-row"><div><small>Total cuota</small></div><div class="editable" id="total"></div></div>
+            </div>
+
+            <div class="side-box">
+              <div class="side-title">Composición</div>
+              <div class="side-row"><div><small>Capital</small></div><div id="compcap" class="editable"></div></div>
+              <div class="side-row"><div><small>Interés</small></div><div id="compint" class="editable"></div></div>
+              <div class="side-row"><div><small>Interés adicional</small></div><div id="compad" class="editable"></div></div>
+              <div class="side-row" style="font-weight:700;"><div>Total</div><div id="comptot" class="editable"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CUOTAS EMITIDAS -->
+        <div style="margin-top:14px;">
+          <div class="main-box">
+            <h4 style="margin:0 0 10px 0;">Cuotas Emitidas</h4>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead>
+                <tr style="background:#f0faff;">
+                  <th style="text-align:left;padding:8px;border:1px solid var(--border)">N°</th>
+                  <th style="text-align:right;padding:8px;border:1px solid var(--border)">Vencimiento</th>
+                  <th style="text-align:right;padding:8px;border:1px solid var(--border)">Valor UVA</th>
+                  <th style="text-align:right;padding:8px;border:1px solid var(--border)">Capital UVA</th>
+                  <th style="text-align:right;padding:8px;border:1px solid var(--border)">Capital $</th>
+                  <th style="text-align:right;padding:8px;border:1px solid var(--border)">Intereses</th>
+                  <th style="text-align:right;padding:8px;border:1px solid var(--border)">Total</th>
+                </tr>
+              </thead>
+              <tbody id="tablaCuotas"></tbody>
+            </table>
+          </div>
+        </div>
+        
+         <!-- CUOTAS FUTURAS -->
+        <div style="margin-top:14px;">
+          <div class="main-box">
+            <h4 style="margin:0 0 10px 0;">Cuotas Futuras Estimadas</h4>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead>
+                <tr style="background:#f0faff;">
+                  <th style="text-align:left;padding:8px;border:1px solid var(--border)">N°</th>
+                  <th style="text-align:right;padding:8px;border:1px solid var(--border)">Vencimiento</th>
+                  <th style="text-align:right;padding:8px;border:1px solid var(--border)">Valor UVA</th>
+                  <th style="text-align:right;padding:8px;border:1px solid var(--border)">Capital UVA</th>
+                  <th style="text-align:right;padding:8px;border:1px solid var(--border)">Capital $</th>
+                  <th style="text-align:right;padding:8px;border:1px solid var(--border)">Intereses</th>
+                  <th style="text-align:right;padding:8px;border:1px solid var(--border)">Total</th>
+                </tr>
+              </thead>
+              <tbody id="tablaCuotasFuturas"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+<script src="datos.js"></script>
+<script>
+const SHEETS_CONFIG = {
+  spreadsheetId: "1P_QACkgSfQKG39ytEIhnkQnflg55B9fgl17yB2-6w4I",
+  cuotasEmitidasSheet: "cuotasEmitidas",
+  cuotasFuturasSheet: "cuotasFuturas"
+};
+
+function buildSheetUrl(spreadsheetId, sheetName) {
+  const encodedSheet = encodeURIComponent(sheetName);
+  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodedSheet}`;
+}
+
+async function fetchSheetRows(spreadsheetId, sheetName) {
+  const url = buildSheetUrl(spreadsheetId, sheetName);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`No se pudo leer la hoja ${sheetName}`);
+  }
+  const text = await response.text();
+  const jsonStart = text.indexOf("{");
+  const jsonEnd = text.lastIndexOf("}");
+  const json = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+  const headers = json.table.cols.map(col => col.label);
+  return json.table.rows.map(row => {
+    const rowData = {};
+    row.c.forEach((cell, index) => {
+      const header = headers[index];
+      rowData[header] = cell?.f ?? cell?.v ?? "";
+    });
+    return rowData;
+  });
+}
+
+function normalizarCuota(row) {
+  return {
+    nro: row.nro ?? row.Nro ?? row["N°"] ?? "",
+    vencimiento: row.vencimiento ?? row.Vencimiento ?? "",
+    valorUva: row.valorUva ?? row["valor uva"] ?? row["Valor UVA"] ?? "",
+    capitalUva: row.capitalUva ?? row["capital uva"] ?? row["Capital UVA"] ?? "",
+    capitalPesos: row.capitalPesos ?? row["capital $"] ?? row["Capital $"] ?? "",
+    intereses: row.intereses ?? row.Intereses ?? "",
+    total: row.total ?? row.Total ?? ""
+  };
+}
+
+async function cargarCuotasDesdeSheets() {
+  const { spreadsheetId, cuotasEmitidasSheet, cuotasFuturasSheet } = SHEETS_CONFIG;
+  if (!spreadsheetId || spreadsheetId === "REEMPLAZAR_CON_ID") {
+    throw new Error("Falta configurar el ID de Google Sheets");
+  }
+
+  const [emitidasRaw, futurasRaw] = await Promise.all([
+    fetchSheetRows(spreadsheetId, cuotasEmitidasSheet),
+    fetchSheetRows(spreadsheetId, cuotasFuturasSheet)
+  ]);
+
+  return {
+    cuotasEmitidas: emitidasRaw.map(normalizarCuota),
+    cuotasFuturas: futurasRaw.map(normalizarCuota)
+  };
+}
+
+async function actualizarDatos(){
+  if(typeof datos==='undefined'){alert("No se encontró el archivo datos.js");return;}
+  tit1.textContent=datos.titular1;
+  dni1.textContent=datos.dni1;
+  tit2.textContent=datos.titular2;
+  dni2.textContent=datos.dni2;
+  domicilio.textContent=datos.domicilio;
+
+  monto.textContent=datos.monto;
+  uvas.textContent=datos.uvas;
+  plazo.textContent=datos.plazo;
+  sistema.textContent=datos.sistema;
+  primera.textContent=datos.primera;
+  ultima.textContent=datos.ultima;
+  tna.textContent=datos.tna;
+  uvasliq.textContent=datos.uvasliq;
+  uvasrest.textContent=datos.uvasrest;
+  cuotasliq.textContent=datos.cuotasliq;
+
+  nrocuota.textContent=datos.cuota.nro;
+  cuotavto.textContent=datos.cuota.cuotavto;
+  cuotauva.textContent=datos.cuota.cuotauva;
+  uvavto.textContent=datos.cuota.uvavto;
+  cap.textContent=datos.cuota.cap;
+  int.textContent=datos.cuota.int;
+  total.textContent=datos.cuota.total;
+
+  compcap.textContent=datos.cuota.cap;
+  compint.textContent=datos.cuota.int;
+  compad.textContent=datos.cuota.adic;
+  comptot.textContent=datos.cuota.total;
+
+  let cuotasEmitidas = datos.cuotasEmitidas;
+  let cuotasFuturas = datos.cuotasFuturas;
+  try {
+    const cuotas = await cargarCuotasDesdeSheets();
+    cuotasEmitidas = cuotas.cuotasEmitidas;
+    cuotasFuturas = cuotas.cuotasFuturas;
+  } catch (error) {
+    console.warn("No se pudieron cargar las cuotas desde Sheets. Se usará datos.js.", error);
+  }
+
+  tablaCuotas.innerHTML='';
+  cuotasEmitidas.forEach(c=>{
+    tablaCuotas.innerHTML+=`
+      <tr>
+        <td style="padding:6px;border:1px solid var(--border)">${c.nro}</td>
+        <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.vencimiento}</td>
+        <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.valorUva}</td>
+        <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.capitalUva}</td>
+        <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.capitalPesos}</td>
+        <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.intereses}</td>
+        <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.total}</td>
+      </tr>`;
+  });
+  
+  tablaCuotasFuturas.innerHTML='';
+  cuotasFuturas.forEach(c=>{
+    tablaCuotasFuturas.innerHTML+=`
+      <tr>
+        <td style="padding:6px;border:1px solid var(--border)">${c.nro}</td>
+        <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.vencimiento}</td>
+        <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.valorUva}</td>
+        <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.capitalUva}</td>
+        <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.capitalPesos}</td>
+        <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.intereses}</td>
+        <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.total}</td>
+      </tr>`;
+  });
+}
+  
+  window.actualizarDatos = actualizarDatos;
+
+  document.addEventListener("DOMContentLoaded", function() {
+    actualizarDatos();
+  });
+ 
+</script>
+</body>
+</html>
