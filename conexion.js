@@ -1,46 +1,35 @@
 const GOOGLE_SHEET_PUB_ID =
   "2PACX-1vQ7hsMlqMyklZrLnhADWz9kjghRg168XAc5nkB4LUyxmPX8Mq0qX7wmiUTQah20PsdttG2ggoqOENKC";
 const SHEET_NAMES = ["cuotasEmitidas", "cuotasFuturas"];
+const SHEET_TABLE_INDEX = {
+  cuotasEmitidas: 0,
+  cuotasFuturas: 1,
+};
 
-function buildCsvUrl(sheetName) {
-  const params = new URLSearchParams({
-    sheet: sheetName,
-    output: "csv",
-  });
-  return `https://docs.google.com/spreadsheets/d/e/${GOOGLE_SHEET_PUB_ID}/pub?${params.toString()}`;
+let pubHtmlTablesPromise = null;
+
+function buildPubHtmlUrl() {
+  return `https://docs.google.com/spreadsheets/d/e/${GOOGLE_SHEET_PUB_ID}/pubhtml`;
 }
 
-function splitCsvLine(line) {
-  const result = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-    if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
-        i += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === "," && !inQuotes) {
-      result.push(current);
-      current = "";
-    } else {
-      current += char;
+function parseHtmlTable(table) {
+  const rows = [];
+  table.querySelectorAll("tr").forEach((row) => {
+    const cells = Array.from(row.querySelectorAll("th, td")).map((cell) =>
+      cell.textContent.trim()
+    );
+    if (cells.some((cell) => cell !== "")) {
+      rows.push(cells);
     }
-  }
-  result.push(current);
-  return result;
+  });
+  return rows;
 }
 
-function parseCsv(text) {
-  return text
-    .trim()
-    .split(/\r?\n/)
-    .filter((line) => line.length > 0)
-    .map((line) => splitCsvLine(line));
+function parsePubHtmlTables(html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const tables = Array.from(doc.querySelectorAll("table.waffle"));
+  const fallbackTables = tables.length ? tables : Array.from(doc.querySelectorAll("table"));
+  return fallbackTables.map((table) => parseHtmlTable(table)).filter((rows) => rows.length > 0);
 }
 
 function normalizeHeader(header) {
