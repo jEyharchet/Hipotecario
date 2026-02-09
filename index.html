@@ -258,6 +258,7 @@
     </div>
   </div>
 
+<script src="conexion.js"></script>
 <script src="datos.js"></script>
 <script>
 function actualizarDatos(){
@@ -321,9 +322,27 @@ function actualizarDatos(){
   });
 }
   
-    document.addEventListener("DOMContentLoaded", function() {
+    async function actualizarCuotasDesdeSheet() {
+    if (typeof cargarCuotasGoogleSheet !== "function") {
+      return;
+    }
+
+    try {
+      const { cuotasEmitidas, cuotasFuturas } = await cargarCuotasGoogleSheet();
+      if (typeof datos !== "undefined") {
+        datos.cuotasEmitidas = cuotasEmitidas;
+        datos.cuotasFuturas = cuotasFuturas;
+        actualizarDatos();
+      }
+    } catch (error) {
+      console.warn("No se pudo actualizar desde Google Sheets:", error);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
     // Tu código aquí
     actualizarDatos();
+    actualizarCuotasDesdeSheet();
   });
  
 </script>
