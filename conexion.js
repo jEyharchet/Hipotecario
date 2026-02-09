@@ -98,27 +98,13 @@ function parseSheetRows(rows) {
 }
 
 async function fetchSheetTable(sheetName) {
-  if (!pubHtmlTablesPromise) {
-    pubHtmlTablesPromise = (async () => {
-      const response = await fetch(buildPubHtmlUrl());
-      if (!response.ok) {
-        throw new Error("No se pudo obtener la página publicada del Google Sheet.");
-      }
-      const html = await response.text();
-      const tables = parsePubHtmlTables(html);
-      if (!tables.length) {
-        throw new Error("No se encontraron tablas en la página publicada.");
-      }
-      return tables;
-    })();
+  const url = buildCsvUrl(sheetName);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`No se pudo obtener la hoja ${sheetName}.`);
   }
-
-  const tables = await pubHtmlTablesPromise;
-  const tableIndex = SHEET_TABLE_INDEX[sheetName];
-  if (tableIndex === undefined) {
-    throw new Error(`No hay una tabla configurada para la hoja ${sheetName}.`);
-  }
-  const rows = tables[tableIndex] || [];
+  const text = await response.text();
+  const rows = parseCsv(text);
   return parseSheetRows(rows);
 }
 
