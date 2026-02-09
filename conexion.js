@@ -1,22 +1,35 @@
-const GOOGLE_SHEET_ID = "1P_QACkgSfQKG39ytEIhnkQnflg55B9fgl17yB2-6w4I";
+const GOOGLE_SHEET_PUB_ID =
+  "2PACX-1vQ7hsMlqMyklZrLnhADWz9kjghRg168XAc5nkB4LUyxmPX8Mq0qX7wmiUTQah20PsdttG2ggoqOENKC";
 const SHEET_NAMES = ["cuotasEmitidas", "cuotasFuturas"];
+const SHEET_TABLE_INDEX = {
+  cuotasEmitidas: 0,
+  cuotasFuturas: 1,
+};
 
-function buildGvizUrl(sheetName) {
-  const params = new URLSearchParams({
-    tqx: "out:json",
-    sheet: sheetName,
-    headers: "1",
-  });
-  return `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?${params.toString()}`;
+let pubHtmlTablesPromise = null;
+
+function buildPubHtmlUrl() {
+  return `https://docs.google.com/spreadsheets/d/e/${GOOGLE_SHEET_PUB_ID}/pubhtml`;
 }
 
-function parseGvizResponse(text) {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1) {
-    throw new Error("Respuesta inesperada del Google Sheet");
-  }
-  return JSON.parse(text.slice(start, end + 1));
+function parseHtmlTable(table) {
+  const rows = [];
+  table.querySelectorAll("tr").forEach((row) => {
+    const cells = Array.from(row.querySelectorAll("th, td")).map((cell) =>
+      cell.textContent.trim()
+    );
+    if (cells.some((cell) => cell !== "")) {
+      rows.push(cells);
+    }
+  });
+  return rows;
+}
+
+function parsePubHtmlTables(html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const tables = Array.from(doc.querySelectorAll("table.waffle"));
+  const fallbackTables = tables.length ? tables : Array.from(doc.querySelectorAll("table"));
+  return fallbackTables.map((table) => parseHtmlTable(table)).filter((rows) => rows.length > 0);
 }
 
 function normalizeHeader(header) {
@@ -53,24 +66,15 @@ function mapHeaderToKey(header) {
   return null;
 }
 
-function formatCell(cell) {
-  if (!cell) {
-    return "";
+function parseSheetRows(rows) {
+  if (!rows.length) {
+    return [];
   }
-  if (cell.f !== undefined && cell.f !== null && cell.f !== "") {
-    return String(cell.f);
-  }
-  if (cell.v === null || cell.v === undefined) {
-    return "";
-  }
-  return String(cell.v);
-}
 
-function parseSheetRows(response) {
-  const columns = response.table.cols || [];
-  const headerKeys = columns.map((col) => mapHeaderToKey(col.label));
+  const [headers, ...dataRows] = rows;
+  const headerKeys = headers.map((header) => mapHeaderToKey(header));
 
-  return (response.table.rows || []).map((row) => {
+  return dataRows.map((row) => {
     const entry = {
       nro: "",
       vencimiento: "",
@@ -81,12 +85,12 @@ function parseSheetRows(response) {
       total: "",
     };
 
-    row.c.forEach((cell, index) => {
+    row.forEach((cell, index) => {
       const key = headerKeys[index];
       if (!key) {
         return;
       }
-      entry[key] = formatCell(cell);
+      entry[key] = String(cell || "");
     });
 
     return entry;
@@ -94,14 +98,28 @@ function parseSheetRows(response) {
 }
 
 async function fetchSheetTable(sheetName) {
-  const url = buildGvizUrl(sheetName);
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`No se pudo obtener la hoja ${sheetName}.`);
+  if (!pubHtmlTablesPromise) {
+    pubHtmlTablesPromise = (async () => {
+      const response = await fetch(buildPubHtmlUrl());
+      if (!response.ok) {
+        throw new Error("No se pudo obtener la página publicada del Google Sheet.");
+      }
+      const html = await response.text();
+      const tables = parsePubHtmlTables(html);
+      if (!tables.length) {
+        throw new Error("No se encontraron tablas en la página publicada.");
+      }
+      return tables;
+    })();
   }
-  const text = await response.text();
-  const json = parseGvizResponse(text);
-  return parseSheetRows(json);
+
+  const tables = await pubHtmlTablesPromise;
+  const tableIndex = SHEET_TABLE_INDEX[sheetName];
+  if (tableIndex === undefined) {
+    throw new Error(`No hay una tabla configurada para la hoja ${sheetName}.`);
+  }
+  const rows = tables[tableIndex] || [];
+  return parseSheetRows(rows);
 }
 
 async function cargarCuotasGoogleSheet() {
