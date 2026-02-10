@@ -86,7 +86,7 @@ function mapHeaderToKey(header) {
   if (["capital uva", "capitaluva"].includes(normalized)) {
     return "capitalUva";
   }
-  if (["capital $", "capital pesos", "capital en pesos", "capital"].includes(normalized)) {
+  if (["capital $", "capital pesos", "capital en pesos", "capitalpesos", "capital"].includes(normalized)) {
     return "capitalPesos";
   }
   if (["intereses", "interes", "interés"].includes(normalized)) {
