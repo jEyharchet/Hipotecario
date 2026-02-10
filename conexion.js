@@ -183,7 +183,17 @@ async function cargarCuotasGoogleSheet() {
   const [cuotasEmitidas, cuotasFuturas] = await Promise.all(
     SHEET_NAMES.map((sheetName) => fetchSheetTable(sheetName))
   );
-  return { cuotasEmitidas, cuotasFuturas };
+
+  const cuotasEmitidasNros = new Set(
+    cuotasEmitidas.map((cuota) => String(cuota.nro || "").trim()).filter((nro) => nro !== "")
+  );
+
+  const cuotasFuturasFiltradas = cuotasFuturas.filter((cuota) => {
+    const nro = String(cuota.nro || "").trim();
+    return nro === "" || !cuotasEmitidasNros.has(nro);
+  });
+
+  return { cuotasEmitidas, cuotasFuturas: cuotasFuturasFiltradas };
 }
 
 window.cargarCuotasGoogleSheet = cargarCuotasGoogleSheet;
