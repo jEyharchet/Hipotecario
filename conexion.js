@@ -1,35 +1,101 @@
 const GOOGLE_SHEET_PUB_ID =
   "2PACX-1vQ7hsMlqMyklZrLnhADWz9kjghRg168XAc5nkB4LUyxmPX8Mq0qX7wmiUTQah20PsdttG2ggoqOENKC";
 const SHEET_NAMES = ["cuotasEmitidas", "cuotasFuturas"];
-const SHEET_TABLE_INDEX = {
-  cuotasEmitidas: 0,
-  cuotasFuturas: 1,
+const SHEET_GID = {
+  cuotasEmitidas: "0",
+  cuotasFuturas: "1072911685",
 };
 
-let pubHtmlTablesPromise = null;
+function buildCsvUrl(sheetName) {
+  const gid = SHEET_GID[sheetName];
+  if (!gid) {
+    throw new Error(`No existe GID configurado para la hoja ${sheetName}.`);
+  }
 
-function buildPubHtmlUrl() {
-  return `https://docs.google.com/spreadsheets/d/e/${GOOGLE_SHEET_PUB_ID}/pubhtml`;
+  return `https://docs.google.com/spreadsheets/d/e/${GOOGLE_SHEET_PUB_ID}/pub?gid=${gid}&single=true&output=csv`;
 }
 
-function parseHtmlTable(table) {
-  const rows = [];
-  table.querySelectorAll("tr").forEach((row) => {
-    const cells = Array.from(row.querySelectorAll("th, td")).map((cell) =>
-      cell.textContent.trim()
-    );
-    if (cells.some((cell) => cell !== "")) {
-      rows.push(cells);
+function detectCsvDelimiter(csvText) {
+  const sample = String(csvText || "").split(/\r?\n/, 1)[0] || "";
+  let inQuotes = false;
+  let commas = 0;
+  let semicolons = 0;
+
+  for (let i = 0; i < sample.length; i += 1) {
+    const char = sample[i];
+
+    if (char === '"') {
+      if (inQuotes && sample[i + 1] === '"') {
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
     }
-  });
-  return rows;
+
+    if (!inQuotes && char === ",") {
+      commas += 1;
+    }
+    if (!inQuotes && char === ";") {
+      semicolons += 1;
+    }
+  }
+
+  return semicolons > commas ? ";" : ",";
 }
 
-function parsePubHtmlTables(html) {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const tables = Array.from(doc.querySelectorAll("table.waffle"));
-  const fallbackTables = tables.length ? tables : Array.from(doc.querySelectorAll("table"));
-  return fallbackTables.map((table) => parseHtmlTable(table)).filter((rows) => rows.length > 0);
+function parseCsv(csvText) {
+  const delimiter = detectCsvDelimiter(csvText);
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < csvText.length; i += 1) {
+    const char = csvText[i];
+
+    if (char === '"') {
+      if (inQuotes && csvText[i + 1] === '"') {
+        cell += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && char === delimiter) {
+      row.push(cell.trim());
+      cell = "";
+      continue;
+    }
+
+    if (!inQuotes && (char === "\n" || char === "\r")) {
+      if (char === "\r" && csvText[i + 1] === "\n") {
+        i += 1;
+      }
+      row.push(cell.trim());
+      if (row.some((value) => value !== "")) {
+        rows.push(row);
+      }
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    cell += char;
+  }
+
+  row.push(cell.trim());
+  if (row.some((value) => value !== "")) {
+    rows.push(row);
+  }
+
+  if (rows.length && rows[0].length) {
+    rows[0][0] = rows[0][0].replace(/^\uFEFF/, "");
+  }
+
+  return rows;
 }
 
 function normalizeHeader(header) {
@@ -54,7 +120,7 @@ function mapHeaderToKey(header) {
   if (["capital uva", "capitaluva"].includes(normalized)) {
     return "capitalUva";
   }
-  if (["capital $", "capital pesos", "capital en pesos", "capital"].includes(normalized)) {
+  if (["capital $", "capital pesos", "capital en pesos", "capitalpesos", "capital"].includes(normalized)) {
     return "capitalPesos";
   }
   if (["intereses", "interes", "interés"].includes(normalized)) {
@@ -101,10 +167,15 @@ async function fetchSheetTable(sheetName) {
   const url = buildCsvUrl(sheetName);
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`No se pudo obtener la hoja ${sheetName}.`);
+    throw new Error(`No se pudo obtener la hoja ${sheetName} (HTTP ${response.status}).`);
   }
-  const text = await response.text();
-  const rows = parseCsv(text);
+
+  const csvText = await response.text();
+  const rows = parseCsv(csvText);
+  if (!rows.length) {
+    throw new Error(`La hoja ${sheetName} está vacía o no se pudo parsear el CSV.`);
+  }
+
   return parseSheetRows(rows);
 }
 
