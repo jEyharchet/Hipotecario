@@ -1,22 +1,42 @@
-const GOOGLE_SHEET_ID = "1P_QACkgSfQKG39ytEIhnkQnflg55B9fgl17yB2-6w4I";
-const SHEET_NAMES = ["cuotasEmitidas", "cuotasFuturas"];
+const SHEET_URLS = {
+  cuotasEmitidas:
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7hsMlqMyklZrLnhADWz9kjghRg168XAc5nkB4LUyxmPX8Mq0qX7wmiUTQah20PsdttG2ggoqOENKC/pub?gid=0&single=true&output=csv",
+  cuotasFuturas:
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7hsMlqMyklZrLnhADWz9kjghRg168XAc5nkB4LUyxmPX8Mq0qX7wmiUTQah20PsdttG2ggoqOENKC/pub?gid=1072911685&single=true&output=csv",
+};
+const SHEET_NAMES = Object.keys(SHEET_URLS);
 
-function buildGvizUrl(sheetName) {
-  const params = new URLSearchParams({
-    tqx: "out:json",
-    sheet: sheetName,
-    headers: "1",
-  });
-  return `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?${params.toString()}`;
+function splitCsvLine(line) {
+  const result = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      result.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  result.push(current);
+  return result;
 }
 
-function parseGvizResponse(text) {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1) {
-    throw new Error("Respuesta inesperada del Google Sheet");
-  }
-  return JSON.parse(text.slice(start, end + 1));
+function parseCsv(text) {
+  return text
+    .trim()
+    .split(/\r?\n/)
+    .filter((line) => line.length > 0)
+    .map((line) => splitCsvLine(line));
 }
 
 function normalizeHeader(header) {
@@ -53,24 +73,15 @@ function mapHeaderToKey(header) {
   return null;
 }
 
-function formatCell(cell) {
-  if (!cell) {
-    return "";
+function parseSheetRows(rows) {
+  if (!rows.length) {
+    return [];
   }
-  if (cell.f !== undefined && cell.f !== null && cell.f !== "") {
-    return String(cell.f);
-  }
-  if (cell.v === null || cell.v === undefined) {
-    return "";
-  }
-  return String(cell.v);
-}
 
-function parseSheetRows(response) {
-  const columns = response.table.cols || [];
-  const headerKeys = columns.map((col) => mapHeaderToKey(col.label));
+  const [headers, ...dataRows] = rows;
+  const headerKeys = headers.map((header) => mapHeaderToKey(header));
 
-  return (response.table.rows || []).map((row) => {
+  return dataRows.map((row) => {
     const entry = {
       nro: "",
       vencimiento: "",
@@ -81,12 +92,12 @@ function parseSheetRows(response) {
       total: "",
     };
 
-    row.c.forEach((cell, index) => {
+    row.forEach((cell, index) => {
       const key = headerKeys[index];
       if (!key) {
         return;
       }
-      entry[key] = formatCell(cell);
+      entry[key] = String(cell || "");
     });
 
     return entry;
@@ -94,14 +105,17 @@ function parseSheetRows(response) {
 }
 
 async function fetchSheetTable(sheetName) {
-  const url = buildGvizUrl(sheetName);
+  const url = SHEET_URLS[sheetName];
+  if (!url) {
+    throw new Error(`No hay una URL configurada para la hoja ${sheetName}.`);
+  }
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`No se pudo obtener la hoja ${sheetName}.`);
   }
   const text = await response.text();
-  const json = parseGvizResponse(text);
-  return parseSheetRows(json);
+  const rows = parseCsv(text);
+  return parseSheetRows(rows);
 }
 
 async function cargarCuotasGoogleSheet() {
