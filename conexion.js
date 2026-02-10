@@ -15,7 +15,37 @@ function buildCsvUrl(sheetName) {
   return `https://docs.google.com/spreadsheets/d/e/${GOOGLE_SHEET_PUB_ID}/pub?gid=${gid}&single=true&output=csv`;
 }
 
+function detectCsvDelimiter(csvText) {
+  const sample = String(csvText || "").split(/\r?\n/, 1)[0] || "";
+  let inQuotes = false;
+  let commas = 0;
+  let semicolons = 0;
+
+  for (let i = 0; i < sample.length; i += 1) {
+    const char = sample[i];
+
+    if (char === '"') {
+      if (inQuotes && sample[i + 1] === '"') {
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && char === ",") {
+      commas += 1;
+    }
+    if (!inQuotes && char === ";") {
+      semicolons += 1;
+    }
+  }
+
+  return semicolons > commas ? ";" : ",";
+}
+
 function parseCsv(csvText) {
+  const delimiter = detectCsvDelimiter(csvText);
   const rows = [];
   let row = [];
   let cell = "";
@@ -34,7 +64,7 @@ function parseCsv(csvText) {
       continue;
     }
 
-    if (!inQuotes && char === ",") {
+    if (!inQuotes && char === delimiter) {
       row.push(cell.trim());
       cell = "";
       continue;
@@ -59,6 +89,10 @@ function parseCsv(csvText) {
   row.push(cell.trim());
   if (row.some((value) => value !== "")) {
     rows.push(row);
+  }
+
+  if (rows.length && rows[0].length) {
+    rows[0][0] = rows[0][0].replace(/^\uFEFF/, "");
   }
 
   return rows;
