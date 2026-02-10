@@ -1,35 +1,42 @@
-const GOOGLE_SHEET_PUB_ID =
-  "2PACX-1vQ7hsMlqMyklZrLnhADWz9kjghRg168XAc5nkB4LUyxmPX8Mq0qX7wmiUTQah20PsdttG2ggoqOENKC";
-const SHEET_NAMES = ["cuotasEmitidas", "cuotasFuturas"];
-const SHEET_TABLE_INDEX = {
-  cuotasEmitidas: 0,
-  cuotasFuturas: 1,
+const SHEET_URLS = {
+  cuotasEmitidas:
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7hsMlqMyklZrLnhADWz9kjghRg168XAc5nkB4LUyxmPX8Mq0qX7wmiUTQah20PsdttG2ggoqOENKC/pub?gid=0&single=true&output=csv",
+  cuotasFuturas:
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7hsMlqMyklZrLnhADWz9kjghRg168XAc5nkB4LUyxmPX8Mq0qX7wmiUTQah20PsdttG2ggoqOENKC/pub?gid=1072911685&single=true&output=csv",
 };
+const SHEET_NAMES = Object.keys(SHEET_URLS);
 
-let pubHtmlTablesPromise = null;
+function splitCsvLine(line) {
+  const result = [];
+  let current = "";
+  let inQuotes = false;
 
-function buildPubHtmlUrl() {
-  return `https://docs.google.com/spreadsheets/d/e/${GOOGLE_SHEET_PUB_ID}/pubhtml`;
-}
-
-function parseHtmlTable(table) {
-  const rows = [];
-  table.querySelectorAll("tr").forEach((row) => {
-    const cells = Array.from(row.querySelectorAll("th, td")).map((cell) =>
-      cell.textContent.trim()
-    );
-    if (cells.some((cell) => cell !== "")) {
-      rows.push(cells);
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      result.push(current);
+      current = "";
+    } else {
+      current += char;
     }
-  });
-  return rows;
+  }
+  result.push(current);
+  return result;
 }
 
-function parsePubHtmlTables(html) {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const tables = Array.from(doc.querySelectorAll("table.waffle"));
-  const fallbackTables = tables.length ? tables : Array.from(doc.querySelectorAll("table"));
-  return fallbackTables.map((table) => parseHtmlTable(table)).filter((rows) => rows.length > 0);
+function parseCsv(text) {
+  return text
+    .trim()
+    .split(/\r?\n/)
+    .filter((line) => line.length > 0)
+    .map((line) => splitCsvLine(line));
 }
 
 function normalizeHeader(header) {
@@ -98,7 +105,10 @@ function parseSheetRows(rows) {
 }
 
 async function fetchSheetTable(sheetName) {
-  const url = buildCsvUrl(sheetName);
+  const url = SHEET_URLS[sheetName];
+  if (!url) {
+    throw new Error(`No hay una URL configurada para la hoja ${sheetName}.`);
+  }
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`No se pudo obtener la hoja ${sheetName}.`);
