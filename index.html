@@ -268,15 +268,25 @@ function parseNumeroCuota(nro) {
   return Number.isFinite(numero) ? numero : Number.POSITIVE_INFINITY;
 }
 
-function actualizarCuotaActualDesdeFuturas(cuotasFuturas) {
-  if (typeof datos === "undefined" || !Array.isArray(cuotasFuturas) || !cuotasFuturas.length) {
+function obtenerCuotaFuturaMenorNro(cuotasFuturas) {
+  if (!Array.isArray(cuotasFuturas) || !cuotasFuturas.length) {
+    return null;
+  }
+
+  return cuotasFuturas.reduce((minima, actual) => {
+    if (!minima) {
+      return actual;
+    }
+    return parseNumeroCuota(actual.nro) < parseNumeroCuota(minima.nro) ? actual : minima;
+  }, null);
+}
+
+function sincronizarCuotaActualConFuturas() {
+  if (typeof datos === "undefined") {
     return;
   }
 
-  const cuotaMinima = [...cuotasFuturas].sort(
-    (a, b) => parseNumeroCuota(a.nro) - parseNumeroCuota(b.nro)
-  )[0];
-
+  const cuotaMinima = obtenerCuotaFuturaMenorNro(datos.cuotasFuturas);
   if (!cuotaMinima) {
     return;
   }
@@ -299,6 +309,7 @@ function actualizarCuotaActualDesdeFuturas(cuotasFuturas) {
 
 function actualizarDatos(){
   if(typeof datos==='undefined'){alert("No se encontró el archivo datos.js");return;}
+  sincronizarCuotaActualConFuturas();
   tit1.textContent=datos.titular1;
   dni1.textContent=datos.dni1;
   tit2.textContent=datos.titular2;
