@@ -190,7 +190,7 @@
           <!-- RIGHT -->
           
           <div>
-            <button onclick="actualizarDatos()" style="width:100%">Actualizar datos</button>
+            <button onclick="actualizarCuotasDesdeSheet()" style="width:100%">Actualizar datos</button>
             <div class="side-box" id="cuotaactual">
               <div class="side-title">Cuota Actual</div>
               <div class="side-row"><div><small>N° de cuota</small></div><div class="editable" id="nrocuota"></div></div>
@@ -202,12 +202,10 @@
               <div class="side-row"><div><small>Total cuota</small></div><div class="editable" id="total"></div></div>
             </div>
 
-            <div class="side-box">
-              <div class="side-title">Composición</div>
-              <div class="side-row"><div><small>Capital</small></div><div id="compcap" class="editable"></div></div>
-              <div class="side-row"><div><small>Interés</small></div><div id="compint" class="editable"></div></div>
-              <div class="side-row"><div><small>Interés adicional</small></div><div id="compad" class="editable"></div></div>
-              <div class="side-row" style="font-weight:700;"><div>Total</div><div id="comptot" class="editable"></div></div>
+            <div class="side-box" id="composicionChartBox">
+              <div class="side-title">Evolución del total de cuota (6 meses)</div>
+              <canvas id="composicionChart" width="360" height="180" style="width:100%;height:180px;border:1px solid var(--border);border-radius:6px;background:#fff"></canvas>
+              <div id="composicionChartLegend" style="margin-top:8px;font-size:12px;color:#2f4f67"></div>
             </div>
           </div>
         </div>
@@ -258,11 +256,254 @@
     </div>
   </div>
 
-<script src="conexion.js"></script>
+<script src="conexion.js?v=20260210.2"></script>
 <script src="datos.js"></script>
 <script>
+function parseNumeroCuota(nro) {
+  const texto = String(nro || "").trim();
+  const base = texto.split("/")[0].trim();
+  const numero = Number(base);
+  return Number.isFinite(numero) ? numero : Number.POSITIVE_INFINITY;
+}
+
+function obtenerCuotaFuturaMenorNro(cuotasFuturas) {
+  if (!Array.isArray(cuotasFuturas) || !cuotasFuturas.length) {
+    return null;
+  }
+
+  return cuotasFuturas.reduce((minima, actual) => {
+    if (!minima) {
+      return actual;
+    }
+    return parseNumeroCuota(actual.nro) < parseNumeroCuota(minima.nro) ? actual : minima;
+  }, null);
+}
+
+function sincronizarCuotaActualConFuturas() {
+  if (typeof datos === "undefined") {
+    return;
+  }
+
+  const cuotaMinima = obtenerCuotaFuturaMenorNro(datos.cuotasFuturas);
+  if (!cuotaMinima) {
+    return;
+  }
+
+  const plazoTexto = String(datos.plazo || "").trim();
+  const nroTexto = String(cuotaMinima.nro || "").trim();
+  const nroConPlazo = nroTexto.includes("/") || !plazoTexto ? nroTexto : `${nroTexto}/${plazoTexto}`;
+
+  datos.cuota = {
+    ...datos.cuota,
+    nro: nroConPlazo,
+    cuotavto: cuotaMinima.vencimiento || "",
+    uvavto: cuotaMinima.valorUva || "",
+    cuotauva: cuotaMinima.capitalUva || "",
+    cap: cuotaMinima.capitalPesos || "",
+    int: cuotaMinima.intereses || "",
+    total: cuotaMinima.total || "",
+  };
+}
+
+function actualizarCuotaActualDesdeFuturas(cuotasFuturas) {
+  if (typeof datos === "undefined") {
+    return;
+  }
+
+  if (Array.isArray(cuotasFuturas)) {
+    datos.cuotasFuturas = cuotasFuturas;
+  }
+
+  sincronizarCuotaActualConFuturas();
+}
+
+function extraerNumero(valor) {
+  if (typeof valor === "number" && Number.isFinite(valor)) {
+    return valor;
+  }
+
+  const texto = String(valor || "").trim();
+  if (!texto) {
+    return NaN;
+  }
+
+  const limpio = texto.replace(/[^\d,.-]/g, "");
+  if (!limpio) {
+    return NaN;
+  }
+
+  const separadorDecimal = limpio.lastIndexOf(",") > limpio.lastIndexOf(".") ? "," : ".";
+  const normalizado = separadorDecimal === ","
+    ? limpio.replace(/\./g, "").replace(/,/g, ".")
+    : limpio.replace(/,/g, "");
+
+  const numero = Number(normalizado);
+  return Number.isFinite(numero) ? numero : NaN;
+}
+
+function formatNumero(valor, maxDecimales = 2) {
+  if (!Number.isFinite(valor)) {
+    return "";
+  }
+
+  return new Intl.NumberFormat("es-AR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxDecimales,
+  }).format(valor);
+}
+
+function extraerPlazoCuotas(plazoTexto) {
+  const texto = String(plazoTexto || "");
+  const entreParentesis = texto.match(/\((\d+)\s*cuotas\)/i);
+  if (entreParentesis) {
+    return Number(entreParentesis[1]);
+  }
+
+  const direct = texto.match(/\d+/);
+  return direct ? Number(direct[0]) : NaN;
+}
+
+function obtenerSerieComposicion() {
+  const emitidas = Array.isArray(datos && datos.cuotasEmitidas) ? datos.cuotasEmitidas : [];
+  const futuras = Array.isArray(datos && datos.cuotasFuturas) ? datos.cuotasFuturas : [];
+
+  const ultimasEmitidas = emitidas.slice(-2).map((cuota) => ({
+    ...cuota,
+    tipo: "Emitida",
+  }));
+
+  const proximasFuturas = futuras.slice(0, 4).map((cuota) => ({
+    ...cuota,
+    tipo: "Futura",
+  }));
+
+  return [...ultimasEmitidas, ...proximasFuturas]
+    .map((cuota) => {
+      const nro = String(cuota.nro || "").trim();
+      const total = extraerNumero(cuota.total);
+      return {
+        nro,
+        total,
+        tipo: cuota.tipo,
+        etiqueta: `${cuota.tipo} ${nro}`,
+      };
+    })
+    .filter((item) => item.nro !== "" && Number.isFinite(item.total));
+}
+
+function renderComposicionChart() {
+  const canvas = document.getElementById("composicionChart");
+  const legend = document.getElementById("composicionChartLegend");
+  if (!canvas || !legend) {
+    return;
+  }
+
+  const serie = obtenerSerieComposicion();
+  legend.textContent = serie.length
+    ? `Incluye ${Math.min(2, (datos.cuotasEmitidas || []).length)} emitidas y ${Math.min(4, (datos.cuotasFuturas || []).length)} futuras.`
+    : "Sin datos suficientes para graficar.";
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return;
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!serie.length) {
+    ctx.fillStyle = "#6a7f94";
+    ctx.font = "12px Arial";
+    ctx.fillText("Sin datos para mostrar", 12, 24);
+    return;
+  }
+
+  const pad = { top: 20, right: 16, bottom: 36, left: 42 };
+  const chartW = canvas.width - pad.left - pad.right;
+  const chartH = canvas.height - pad.top - pad.bottom;
+
+  const values = serie.map((p) => p.total);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const range = maxV - minV || 1;
+
+  const toX = (i) => pad.left + (serie.length === 1 ? chartW / 2 : (i * chartW) / (serie.length - 1));
+  const toY = (v) => pad.top + ((maxV - v) / range) * chartH;
+
+  ctx.strokeStyle = "#d6e2ec";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 3; i += 1) {
+    const y = pad.top + (i * chartH) / 3;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(canvas.width - pad.right, y);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "#0077b6";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  serie.forEach((p, i) => {
+    const x = toX(i);
+    const y = toY(p.total);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  serie.forEach((p, i) => {
+    const x = toX(i);
+    const y = toY(p.total);
+    ctx.fillStyle = p.tipo === "Emitida" ? "#0077b6" : "#2a9d8f";
+    ctx.beginPath();
+    ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#1a2a3a";
+    ctx.font = "10px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(p.nro, x, canvas.height - 18);
+  });
+
+  ctx.fillStyle = "#1a2a3a";
+  ctx.font = "10px Arial";
+  ctx.textAlign = "left";
+  ctx.fillText(formatNumero(maxV, 0), 4, pad.top + 4);
+  ctx.fillText(formatNumero(minV, 0), 4, pad.top + chartH + 4);
+}
+
+function actualizarResumenCredito(cuotasEmitidasInput = datos && datos.cuotasEmitidas) {
+  if (typeof datos === "undefined") {
+    return;
+  }
+
+  const cuotasEmitidas = Array.isArray(cuotasEmitidasInput) ? cuotasEmitidasInput : [];
+  const plazo = extraerPlazoCuotas(datos.plazo);
+  const cantidadCuotasLiquidadas = cuotasEmitidas.length;
+
+  const uvasLiquidadas = cuotasEmitidas.reduce((acum, cuota) => {
+    const capitalUva = extraerNumero(cuota && cuota.capitalUva);
+    return acum + (Number.isFinite(capitalUva) ? capitalUva : 0);
+  }, 0);
+
+  const uvasTotales = extraerNumero(datos.uvas);
+  const uvasLiquidadasFormateadas = formatNumero(uvasLiquidadas, 2);
+  const uvasLiquidadasNumero = extraerNumero(uvasLiquidadasFormateadas);
+  const uvasRestantes = Number.isFinite(uvasTotales) && Number.isFinite(uvasLiquidadasNumero)
+    ? uvasTotales - uvasLiquidadasNumero
+    : NaN;
+
+  datos.cuotasliq = Number.isFinite(plazo)
+    ? `${cantidadCuotasLiquidadas}/${plazo}`
+    : String(cantidadCuotasLiquidadas);
+  datos.uvasliq = uvasLiquidadasFormateadas;
+  datos.uvasrest = Number.isFinite(uvasRestantes)
+    ? formatNumero(uvasRestantes, 2)
+    : "";
+}
+
 function actualizarDatos(){
   if(typeof datos==='undefined'){alert("No se encontró el archivo datos.js");return;}
+  sincronizarCuotaActualConFuturas();
+  actualizarResumenCredito(datos.cuotasEmitidas);
   tit1.textContent=datos.titular1;
   dni1.textContent=datos.dni1;
   tit2.textContent=datos.titular2;
@@ -287,11 +528,6 @@ function actualizarDatos(){
   cap.textContent=datos.cuota.cap;
   int.textContent=datos.cuota.int;
   total.textContent=datos.cuota.total;
-
-  compcap.textContent=datos.cuota.cap;
-  compint.textContent=datos.cuota.int;
-  compad.textContent=datos.cuota.adic;
-  comptot.textContent=datos.cuota.total;
 
   tablaCuotas.innerHTML='';
   datos.cuotasEmitidas.forEach(c=>{
@@ -320,6 +556,7 @@ function actualizarDatos(){
         <td style="padding:6px;text-align:right;border:1px solid var(--border)">${c.total}</td>
       </tr>`;
   });
+  renderComposicionChart();
 }
   
     async function actualizarCuotasDesdeSheet() {
@@ -332,6 +569,7 @@ function actualizarDatos(){
       if (typeof datos !== "undefined") {
         datos.cuotasEmitidas = cuotasEmitidas;
         datos.cuotasFuturas = cuotasFuturas;
+        actualizarResumenCredito(cuotasEmitidas);
         actualizarDatos();
       }
     } catch (error) {
