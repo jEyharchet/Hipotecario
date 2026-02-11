@@ -258,11 +258,70 @@
     </div>
   </div>
 
-<script src="conexion.js"></script>
+<script src="conexion.js?v=20260210.2"></script>
 <script src="datos.js"></script>
 <script>
+function parseNumeroCuota(nro) {
+  const texto = String(nro || "").trim();
+  const base = texto.split("/")[0].trim();
+  const numero = Number(base);
+  return Number.isFinite(numero) ? numero : Number.POSITIVE_INFINITY;
+}
+
+function obtenerCuotaFuturaMenorNro(cuotasFuturas) {
+  if (!Array.isArray(cuotasFuturas) || !cuotasFuturas.length) {
+    return null;
+  }
+
+  return cuotasFuturas.reduce((minima, actual) => {
+    if (!minima) {
+      return actual;
+    }
+    return parseNumeroCuota(actual.nro) < parseNumeroCuota(minima.nro) ? actual : minima;
+  }, null);
+}
+
+function sincronizarCuotaActualConFuturas() {
+  if (typeof datos === "undefined") {
+    return;
+  }
+
+  const cuotaMinima = obtenerCuotaFuturaMenorNro(datos.cuotasFuturas);
+  if (!cuotaMinima) {
+    return;
+  }
+
+  const plazoTexto = String(datos.plazo || "").trim();
+  const nroTexto = String(cuotaMinima.nro || "").trim();
+  const nroConPlazo = nroTexto.includes("/") || !plazoTexto ? nroTexto : `${nroTexto}/${plazoTexto}`;
+
+  datos.cuota = {
+    ...datos.cuota,
+    nro: nroConPlazo,
+    cuotavto: cuotaMinima.vencimiento || "",
+    uvavto: cuotaMinima.valorUva || "",
+    cuotauva: cuotaMinima.capitalUva || "",
+    cap: cuotaMinima.capitalPesos || "",
+    int: cuotaMinima.intereses || "",
+    total: cuotaMinima.total || "",
+  };
+}
+
+function actualizarCuotaActualDesdeFuturas(cuotasFuturas) {
+  if (typeof datos === "undefined") {
+    return;
+  }
+
+  if (Array.isArray(cuotasFuturas)) {
+    datos.cuotasFuturas = cuotasFuturas;
+  }
+
+  sincronizarCuotaActualConFuturas();
+}
+
 function actualizarDatos(){
   if(typeof datos==='undefined'){alert("No se encontró el archivo datos.js");return;}
+  sincronizarCuotaActualConFuturas();
   tit1.textContent=datos.titular1;
   dni1.textContent=datos.dni1;
   tit2.textContent=datos.titular2;
