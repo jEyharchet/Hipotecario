@@ -307,6 +307,18 @@ function sincronizarCuotaActualConFuturas() {
   };
 }
 
+function actualizarCuotaActualDesdeFuturas(cuotasFuturas) {
+  if (typeof datos === "undefined") {
+    return;
+  }
+
+  if (Array.isArray(cuotasFuturas)) {
+    datos.cuotasFuturas = cuotasFuturas;
+  }
+
+  sincronizarCuotaActualConFuturas();
+}
+
 function actualizarDatos(){
   if(typeof datos==='undefined'){alert("No se encontró el archivo datos.js");return;}
   sincronizarCuotaActualConFuturas();
