@@ -380,15 +380,19 @@ function actualizarResumenCredito(cuotasEmitidasInput = datos && datos.cuotasEmi
   }, 0);
 
   const uvasTotales = extraerNumero(datos.uvas);
-  const uvasRestantes = Number.isFinite(uvasTotales) ? uvasTotales - uvasLiquidadas : NaN;
+  const uvasLiquidadasFormateadas = formatNumero(uvasLiquidadas, 2);
+  const uvasLiquidadasNumero = extraerNumero(uvasLiquidadasFormateadas);
+  const uvasRestantes = Number.isFinite(uvasTotales) && Number.isFinite(uvasLiquidadasNumero)
+    ? uvasTotales - uvasLiquidadasNumero
+    : NaN;
 
   datos.cuotasliq = Number.isFinite(plazo)
     ? `${cantidadCuotasLiquidadas}/${plazo}`
     : String(cantidadCuotasLiquidadas);
-  datos.uvasliq = formatNumero(uvasLiquidadas, 2);
-  if (Number.isFinite(uvasRestantes)) {
-    datos.uvasrest = formatNumero(uvasRestantes, 2);
-  }
+  datos.uvasliq = uvasLiquidadasFormateadas;
+  datos.uvasrest = Number.isFinite(uvasRestantes)
+    ? formatNumero(uvasRestantes, 2)
+    : "";
 }
 
 function actualizarDatos(){
