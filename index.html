@@ -258,11 +258,143 @@
     </div>
   </div>
 
-<script src="conexion.js"></script>
+<script src="conexion.js?v=20260210.2"></script>
 <script src="datos.js"></script>
 <script>
+function parseNumeroCuota(nro) {
+  const texto = String(nro || "").trim();
+  const base = texto.split("/")[0].trim();
+  const numero = Number(base);
+  return Number.isFinite(numero) ? numero : Number.POSITIVE_INFINITY;
+}
+
+function obtenerCuotaFuturaMenorNro(cuotasFuturas) {
+  if (!Array.isArray(cuotasFuturas) || !cuotasFuturas.length) {
+    return null;
+  }
+
+  return cuotasFuturas.reduce((minima, actual) => {
+    if (!minima) {
+      return actual;
+    }
+    return parseNumeroCuota(actual.nro) < parseNumeroCuota(minima.nro) ? actual : minima;
+  }, null);
+}
+
+function sincronizarCuotaActualConFuturas() {
+  if (typeof datos === "undefined") {
+    return;
+  }
+
+  const cuotaMinima = obtenerCuotaFuturaMenorNro(datos.cuotasFuturas);
+  if (!cuotaMinima) {
+    return;
+  }
+
+  const plazoTexto = String(datos.plazo || "").trim();
+  const nroTexto = String(cuotaMinima.nro || "").trim();
+  const nroConPlazo = nroTexto.includes("/") || !plazoTexto ? nroTexto : `${nroTexto}/${plazoTexto}`;
+
+  datos.cuota = {
+    ...datos.cuota,
+    nro: nroConPlazo,
+    cuotavto: cuotaMinima.vencimiento || "",
+    uvavto: cuotaMinima.valorUva || "",
+    cuotauva: cuotaMinima.capitalUva || "",
+    cap: cuotaMinima.capitalPesos || "",
+    int: cuotaMinima.intereses || "",
+    total: cuotaMinima.total || "",
+  };
+}
+
+function actualizarCuotaActualDesdeFuturas(cuotasFuturas) {
+  if (typeof datos === "undefined") {
+    return;
+  }
+
+  if (Array.isArray(cuotasFuturas)) {
+    datos.cuotasFuturas = cuotasFuturas;
+  }
+
+  sincronizarCuotaActualConFuturas();
+}
+
+function extraerNumero(valor) {
+  if (typeof valor === "number" && Number.isFinite(valor)) {
+    return valor;
+  }
+
+  const texto = String(valor || "").trim();
+  if (!texto) {
+    return NaN;
+  }
+
+  const limpio = texto.replace(/[^\d,.-]/g, "");
+  if (!limpio) {
+    return NaN;
+  }
+
+  const separadorDecimal = limpio.lastIndexOf(",") > limpio.lastIndexOf(".") ? "," : ".";
+  const normalizado = separadorDecimal === ","
+    ? limpio.replace(/\./g, "").replace(/,/g, ".")
+    : limpio.replace(/,/g, "");
+
+  const numero = Number(normalizado);
+  return Number.isFinite(numero) ? numero : NaN;
+}
+
+function formatNumero(valor, maxDecimales = 2) {
+  if (!Number.isFinite(valor)) {
+    return "";
+  }
+
+  return new Intl.NumberFormat("es-AR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxDecimales,
+  }).format(valor);
+}
+
+function extraerPlazoCuotas(plazoTexto) {
+  const texto = String(plazoTexto || "");
+  const entreParentesis = texto.match(/\((\d+)\s*cuotas\)/i);
+  if (entreParentesis) {
+    return Number(entreParentesis[1]);
+  }
+
+  const direct = texto.match(/\d+/);
+  return direct ? Number(direct[0]) : NaN;
+}
+
+function actualizarResumenCredito(cuotasEmitidasInput = datos && datos.cuotasEmitidas) {
+  if (typeof datos === "undefined") {
+    return;
+  }
+
+  const cuotasEmitidas = Array.isArray(cuotasEmitidasInput) ? cuotasEmitidasInput : [];
+  const plazo = extraerPlazoCuotas(datos.plazo);
+  const cantidadCuotasLiquidadas = cuotasEmitidas.length;
+
+  const uvasLiquidadas = cuotasEmitidas.reduce((acum, cuota) => {
+    const capitalUva = extraerNumero(cuota && cuota.capitalUva);
+    return acum + (Number.isFinite(capitalUva) ? capitalUva : 0);
+  }, 0);
+
+  const uvasTotales = extraerNumero(datos.uvas);
+  const uvasRestantes = Number.isFinite(uvasTotales) ? uvasTotales - uvasLiquidadas : NaN;
+
+  datos.cuotasliq = Number.isFinite(plazo)
+    ? `${cantidadCuotasLiquidadas}/${plazo}`
+    : String(cantidadCuotasLiquidadas);
+  datos.uvasliq = formatNumero(uvasLiquidadas, 2);
+  if (Number.isFinite(uvasRestantes)) {
+    datos.uvasrest = formatNumero(uvasRestantes, 2);
+  }
+}
+
 function actualizarDatos(){
   if(typeof datos==='undefined'){alert("No se encontró el archivo datos.js");return;}
+  sincronizarCuotaActualConFuturas();
+  actualizarResumenCredito(datos.cuotasEmitidas);
   tit1.textContent=datos.titular1;
   dni1.textContent=datos.dni1;
   tit2.textContent=datos.titular2;
@@ -332,6 +464,7 @@ function actualizarDatos(){
       if (typeof datos !== "undefined") {
         datos.cuotasEmitidas = cuotasEmitidas;
         datos.cuotasFuturas = cuotasFuturas;
+        actualizarResumenCredito(cuotasEmitidas);
         actualizarDatos();
       }
     } catch (error) {
