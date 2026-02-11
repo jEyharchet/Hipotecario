@@ -379,6 +379,7 @@ function actualizarDatos(){
       if (typeof datos !== "undefined") {
         datos.cuotasEmitidas = cuotasEmitidas;
         datos.cuotasFuturas = cuotasFuturas;
+        actualizarCuotaActualDesdeFuturas(cuotasFuturas);
         actualizarDatos();
       }
     } catch (error) {
