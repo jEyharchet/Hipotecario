@@ -261,6 +261,42 @@
 <script src="conexion.js?v=20260210.2"></script>
 <script src="datos.js"></script>
 <script>
+function parseNumeroCuota(nro) {
+  const texto = String(nro || "").trim();
+  const base = texto.split("/")[0].trim();
+  const numero = Number(base);
+  return Number.isFinite(numero) ? numero : Number.POSITIVE_INFINITY;
+}
+
+function actualizarCuotaActualDesdeFuturas(cuotasFuturas) {
+  if (typeof datos === "undefined" || !Array.isArray(cuotasFuturas) || !cuotasFuturas.length) {
+    return;
+  }
+
+  const cuotaMinima = [...cuotasFuturas].sort(
+    (a, b) => parseNumeroCuota(a.nro) - parseNumeroCuota(b.nro)
+  )[0];
+
+  if (!cuotaMinima) {
+    return;
+  }
+
+  const plazoTexto = String(datos.plazo || "").trim();
+  const nroTexto = String(cuotaMinima.nro || "").trim();
+  const nroConPlazo = nroTexto.includes("/") || !plazoTexto ? nroTexto : `${nroTexto}/${plazoTexto}`;
+
+  datos.cuota = {
+    ...datos.cuota,
+    nro: nroConPlazo,
+    cuotavto: cuotaMinima.vencimiento || "",
+    uvavto: cuotaMinima.valorUva || "",
+    cuotauva: cuotaMinima.capitalUva || "",
+    cap: cuotaMinima.capitalPesos || "",
+    int: cuotaMinima.intereses || "",
+    total: cuotaMinima.total || "",
+  };
+}
+
 function actualizarDatos(){
   if(typeof datos==='undefined'){alert("No se encontró el archivo datos.js");return;}
   tit1.textContent=datos.titular1;
@@ -332,6 +368,7 @@ function actualizarDatos(){
       if (typeof datos !== "undefined") {
         datos.cuotasEmitidas = cuotasEmitidas;
         datos.cuotasFuturas = cuotasFuturas;
+        actualizarCuotaActualDesdeFuturas(cuotasFuturas);
         actualizarDatos();
       }
     } catch (error) {
