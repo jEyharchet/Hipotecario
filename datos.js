@@ -5,7 +5,7 @@ const datos = {
   dni2: "30025045",
   domicilio: "Jara 166, Piso 2, Dpto A - Mar del Plata, Buenos Aires",
   monto: "$183.499.995,15",
-  uvas: "115.589,82 UVA",
+  uvas: "115.589,82",
   plazo: "360",
   sistema: "Francés",
   primera: "10/11/2025",
@@ -3261,3 +3261,4 @@ const datos = {
  }
   ]
 };
+
