@@ -363,32 +363,50 @@ function extraerPlazoCuotas(plazoTexto) {
   return direct ? Number(direct[0]) : NaN;
 }
 
+function obtenerEtiquetaPeriodo(vencimiento) {
+  const texto = String(vencimiento || "").trim();
+  if (!texto) {
+    return "";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+    const [yyyy, mm] = texto.split("-");
+    return `${yyyy}${mm}`;
+  }
+
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(texto)) {
+    const [dd, mm, yyyy] = texto.split("/");
+    return `${yyyy}${mm.padStart(2, "0")}`;
+  }
+
+  return texto;
+}
+
 function obtenerSerieComposicion() {
   const emitidas = Array.isArray(datos && datos.cuotasEmitidas) ? datos.cuotasEmitidas : [];
   const futuras = Array.isArray(datos && datos.cuotasFuturas) ? datos.cuotasFuturas : [];
 
-  const ultimasEmitidas = emitidas.slice(-2).map((cuota) => ({
+  const ultimasEmitidas = emitidas.slice(-3).map((cuota) => ({
     ...cuota,
     tipo: "Emitida",
   }));
 
-  const proximasFuturas = futuras.slice(0, 4).map((cuota) => ({
+  const proximasFuturas = futuras.slice(0, 3).map((cuota) => ({
     ...cuota,
     tipo: "Futura",
   }));
 
   return [...ultimasEmitidas, ...proximasFuturas]
     .map((cuota) => {
-      const nro = String(cuota.nro || "").trim();
       const total = extraerNumero(cuota.total);
+      const periodo = obtenerEtiquetaPeriodo(cuota.vencimiento);
       return {
-        nro,
         total,
         tipo: cuota.tipo,
-        etiqueta: `${cuota.tipo} ${nro}`,
+        periodo,
       };
     })
-    .filter((item) => item.nro !== "" && Number.isFinite(item.total));
+    .filter((item) => item.periodo !== "" && Number.isFinite(item.total));
 }
 
 function renderComposicionChart() {
@@ -400,7 +418,7 @@ function renderComposicionChart() {
 
   const serie = obtenerSerieComposicion();
   legend.textContent = serie.length
-    ? `Incluye ${Math.min(2, (datos.cuotasEmitidas || []).length)} emitidas y ${Math.min(4, (datos.cuotasFuturas || []).length)} futuras.`
+    ? `Incluye ${Math.min(3, (datos.cuotasEmitidas || []).length)} emitidas y ${Math.min(3, (datos.cuotasFuturas || []).length)} futuras.`
     : "Sin datos suficientes para graficar.";
 
   const ctx = canvas.getContext("2d");
@@ -416,7 +434,7 @@ function renderComposicionChart() {
     return;
   }
 
-  const pad = { top: 20, right: 16, bottom: 36, left: 42 };
+  const pad = { top: 20, right: 16, bottom: 42, left: 52 };
   const chartW = canvas.width - pad.left - pad.right;
   const chartH = canvas.height - pad.top - pad.bottom;
 
@@ -426,7 +444,10 @@ function renderComposicionChart() {
   const range = maxV - minV || 1;
 
   const toX = (i) => pad.left + (serie.length === 1 ? chartW / 2 : (i * chartW) / (serie.length - 1));
-  const toY = (v) => pad.top + ((maxV - v) / range) * chartH;
+  const bandTop = pad.top + chartH / 3;
+  const bandBottom = pad.top + (2 * chartH) / 3;
+  const bandHeight = bandBottom - bandTop || 1;
+  const toY = (v) => bandTop + ((maxV - v) / range) * bandHeight;
 
   ctx.strokeStyle = "#d6e2ec";
   ctx.lineWidth = 1;
@@ -460,14 +481,17 @@ function renderComposicionChart() {
     ctx.fillStyle = "#1a2a3a";
     ctx.font = "10px Arial";
     ctx.textAlign = "center";
-    ctx.fillText(p.nro, x, canvas.height - 18);
+    ctx.fillText(p.periodo, x, canvas.height - 18);
+
+    const labelY = y - 8;
+    ctx.fillText(formatNumero(p.total, 0), x, labelY);
   });
 
   ctx.fillStyle = "#1a2a3a";
   ctx.font = "10px Arial";
   ctx.textAlign = "left";
-  ctx.fillText(formatNumero(maxV, 0), 4, pad.top + 4);
-  ctx.fillText(formatNumero(minV, 0), 4, pad.top + chartH + 4);
+  ctx.fillText(formatNumero(maxV, 0), 4, bandTop + 4);
+  ctx.fillText(formatNumero(minV, 0), 4, bandBottom + 4);
 }
 
 function actualizarResumenCredito(cuotasEmitidasInput = datos && datos.cuotasEmitidas) {
