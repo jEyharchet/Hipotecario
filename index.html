@@ -365,12 +365,12 @@ function extraerPlazoCuotas(plazoTexto) {
   return direct ? Number(direct[0]) : NaN;
 }
 
-function actualizarResumenCredito() {
+function actualizarResumenCredito(cuotasEmitidasInput = datos && datos.cuotasEmitidas) {
   if (typeof datos === "undefined") {
     return;
   }
 
-  const cuotasEmitidas = Array.isArray(datos.cuotasEmitidas) ? datos.cuotasEmitidas : [];
+  const cuotasEmitidas = Array.isArray(cuotasEmitidasInput) ? cuotasEmitidasInput : [];
   const plazo = extraerPlazoCuotas(datos.plazo);
   const cantidadCuotasLiquidadas = cuotasEmitidas.length;
 
@@ -394,7 +394,7 @@ function actualizarResumenCredito() {
 function actualizarDatos(){
   if(typeof datos==='undefined'){alert("No se encontró el archivo datos.js");return;}
   sincronizarCuotaActualConFuturas();
-  actualizarResumenCredito();
+  actualizarResumenCredito(datos.cuotasEmitidas);
   tit1.textContent=datos.titular1;
   dni1.textContent=datos.dni1;
   tit2.textContent=datos.titular2;
@@ -464,7 +464,7 @@ function actualizarDatos(){
       if (typeof datos !== "undefined") {
         datos.cuotasEmitidas = cuotasEmitidas;
         datos.cuotasFuturas = cuotasFuturas;
-        actualizarCuotaActualDesdeFuturas(cuotasFuturas);
+        actualizarResumenCredito(cuotasEmitidas);
         actualizarDatos();
       }
     } catch (error) {
