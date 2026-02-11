@@ -6,7 +6,7 @@ const datos = {
   domicilio: "Jara 166, Piso 2, Dpto A - Mar del Plata, Buenos Aires",
   monto: "$183.499.995,15",
   uvas: "115.589,82 UVA",
-  plazo: "30 años (360 cuotas)",
+  plazo: "360",
   sistema: "Francés",
   primera: "10/11/2025",
   ultima: "10/10/2055",
